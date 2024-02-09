@@ -1,0 +1,21 @@
+[package]
+name = "hex-cellular-life"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+winit = ["winit/default", "winit/wayland-backend", "winit/wayland"]
+optimize = ["log/release_max_level_warn"]
+default = ["optimize", "winit"]
+
+[dependencies]
+byteorder = "1"
+env_logger = "0.10"
+error-iter = "0.4"
+getrandom = "0.2"
+clipline = "0.1.1"
+log = "0.4"
+randomize = "3"
+winit = { version = "0.29.10", features = ["rwh_05"] }
+winit_input_helper = "0.15.3"
+pixels = "0.13.0"
