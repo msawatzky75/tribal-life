@@ -9,14 +9,38 @@ optimize = ["log/release_max_level_warn"]
 default = ["optimize", "winit"]
 
 [dependencies]
-byteorder = "1"
-env_logger = "0.10"
-error-iter = "0.4"
-getrandom = "0.2"
-clipline = "0.1.1"
-log = "0.4"
-randomize = "3"
+cfg-if = "1"
 winit = { version = "0.29.10", features = ["rwh_05"] }
-winit_input_helper = "0.15.3"
-pixels = "0.13.0"
-raqote = "0.8.3"
+#winit = "0.29.10"
+env_logger = "0.10"
+log = "0.4"
+wgpu = "0.19"
+pollster = "0.3"
+bytemuck = { version = "1.12", features = ["derive"] }
+cgmath = "0.18"
+anyhow = "1.0"
+
+byteorder = "1"
+getrandom = "0.2"
+randomize = "3"
+instant = "0.1.12"
+
+[dependencies.image]
+version = "0.24"
+default-features = false
+features = ["png", "jpeg"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+console_error_panic_hook = "0.1.6"
+console_log = "1.0"
+wgpu = { version = "0.19", features = ["webgl"] }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+    "Document",
+    "Window",
+    "Element",
+] }
+
+[lib]
+crate-type = ["cdylib", "rlib"]

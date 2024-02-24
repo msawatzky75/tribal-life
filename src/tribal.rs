@@ -1,12 +1,11 @@
-pub(crate) mod hexagon;
+pub mod hex;
 
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap};
 use std::hash::Hash;
-use raqote::*;
-use crate::tribal::hexagon::*;
-use crate::tribal::hexagon::Point;
-
+use crate::tribal::hex::*;
+use crate::tribal::hex::Point;
+use wgpu::Color;
 
 /// Generate a pseudorandom seed for the game's PRNG.
 fn generate_seed() -> (u64, u64) {
@@ -31,9 +30,24 @@ struct Tribe {
 impl Tribe {
     pub fn colors() -> Vec<Color> {
         vec![
-            Color::new(0xff, 0xff, 0, 0),
-            Color::new(0xff, 0, 0, 0xff),
-            Color::new(0xff, 0xff, 0xa5, 0),
+            Color {
+                a: (0xff / 0xff) as f64,
+                r: (0xff / 0xff) as f64,
+                g: 0f64,
+                b: 0f64,
+            },
+            Color {
+                a: (0xff / 0xff) as f64,
+                r: 0f64,
+                g: 0f64,
+                b: (0xff / 0xff) as f64,
+            },
+            Color {
+                a: (0xff / 0xff) as f64,
+                r: (0xff / 0xff) as f64,
+                g: (0xa5 / 0xff) as f64,
+                b: 0f64,
+            },
         ]
     }
     pub fn red() -> Tribe { Tribe { id: 0 } }
@@ -54,16 +68,16 @@ impl Tribe {
 fn get_next_tribe(tribe: Tribe, n: [(Hex, &Tribe); 6]) -> Tribe {
     let binding = n.map(|(_, tribe)| { *tribe });
     let mut freq = most_frequent(&binding, 2);
-    let (count, n_tribe) = freq.pop().unwrap();
+    let (count, mut n_tribe) = freq.pop().unwrap();
 
     if n_tribe.id == tribe.id {
         let next = freq.pop();
-        if next.is_none() { tribe } else { *next.unwrap().1 }
-    } else if n_tribe.beats(tribe) && count >= 2 { *n_tribe } else { tribe }
+        if next.is_none() { return tribe; } else { n_tribe = next.unwrap().1; }
+    }
+    if n_tribe.beats(tribe) && count >= 2 { *n_tribe } else { tribe }
 }
 
 pub struct TribalHexGrid {
-    dt: DrawTarget,
     size: Point<usize>,
     cells: HashMap<Hex, Tribe>,
     scratch_cells: HashMap<Hex, Tribe>,
@@ -91,7 +105,6 @@ impl TribalHexGrid {
         let bottom: i32 = height as i32;
 
         Self {
-            dt: DrawTarget::new(dt_size.x as i32, dt_size.y as i32),
             cells: TribalHexGrid::pointy_rect(left, right, top, bottom),
             scratch_cells: TribalHexGrid::pointy_rect(left, right, top, bottom),
             size: Point {
@@ -137,7 +150,6 @@ impl TribalHexGrid {
             cell.add(offset)
         })
     }
-
     pub fn update(&mut self) {
         for (cell, tribe) in self.cells.iter() {
             let neighbors = self.get_neighbors(*cell);
@@ -158,25 +170,8 @@ impl TribalHexGrid {
         std::mem::swap(&mut self.scratch_cells, &mut self.cells);
     }
 
-    /// Gain access to the underlying pixels
-    pub fn frame(&self) -> &[u32] {
-        self.dt.get_data()
-    }
+    pub fn cells(&self) -> &HashMap<Hex, Tribe> { &self.cells }
 
-    pub fn draw(&mut self) {
-        for (hex, tribe) in self.cells.iter() {
-            let mut pb = PathBuilder::new();
-            let corners = hex.polygon_corners(self.layout);
-            pb.move_to(corners[0].x as f32, corners[0].y as f32);
-
-            for polygon_corner in corners {
-                pb.line_to(polygon_corner.x as f32, polygon_corner.y as f32)
-            }
-            pb.close();
-            let path = pb.finish();
-            self.dt.fill(&path, &Source::Solid(SolidSource::from(tribe.get_color())), &DrawOptions::new());
-        }
-    }
     fn get_wrapped(&self, bad_neighbor: Hex) -> Hex {
         let mut new = Hex { q: bad_neighbor.q, r: bad_neighbor.r };
 
