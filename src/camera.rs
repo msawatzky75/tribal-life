@@ -127,8 +127,8 @@ impl CameraController {
 		let dt = dt.as_secs_f32();
 
 		// Move forward/backward and left/right
-		camera.position.x += (self.amount_right - self.amount_left) * self.speed * dt;
-		camera.position.y += (self.amount_up - self.amount_down) * self.speed * dt;
+		camera.position.x += (self.amount_right - self.amount_left) * (camera.position.z / 5.) * self.speed * dt;
+		camera.position.y += (self.amount_up - self.amount_down) * (camera.position.z / 5.) * self.speed * dt;
 		camera.position.z += (self.scroll) * 0.5;
 
 		// // TODO: just use a scale variable
@@ -141,8 +141,6 @@ impl CameraController {
 		// 		camera.width = new_width as u32;
 		// 	}
 		// }
-
-		println!("camera position: {:?}", camera.position);
 
 		self.scroll = 0.;
 		self.amount_up = 0.;

@@ -72,15 +72,13 @@ impl TribalHexGrid {
 		let layout = Layout {
 			orientation: Orientation::pointy(),
 			size: cell_size,
-			origin: Point2 { x: 0., y: 0. },
+			origin: Point2 { x: grid_size.x * cell_size.x, y: grid_size.y * cell_size.y } / -2.,
 		};
 
 		let width = grid_size.x;
 		let height = grid_size.y;
 
 		assert!(width != 0. && height != 0.);
-		// assert!((width * cell_size.x * 2.) + 1. <= dt_size.x, "Grid width too large");
-		// assert!((height * cell_size.y * 2.) + 1. <= dt_size.y, "Grid height too large");
 
 		let left: i32 = 0;
 		let right: i32 = width as i32;

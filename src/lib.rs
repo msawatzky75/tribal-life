@@ -49,7 +49,7 @@ pub async fn run(width: f64, height: f64) {
 	let mut paused = false;
 
 	let grid = tribal::TribalHexGrid::new_random(
-		Point2 { x: 10., y: 10. },
+		Point2 { x: 200., y: 200. },
 		Point2 { x: 50., y: 50. },
 	);
 
@@ -94,6 +94,7 @@ pub async fn run(width: f64, height: f64) {
 					let dt = now - last_render_time;
 					last_render_time = now;
 					state.update(dt);
+					println!("render time: {:?}", dt);
 					match state.render() {
 						Ok(_) => {}
 						// Reconfigure the surface if lost
@@ -119,6 +120,13 @@ pub async fn run(width: f64, height: f64) {
 			Event::AboutToWait {} => {
 				// RedrawRequested will only trigger once unless we manually
 				// request it.
+				if !paused {
+					let now = instant::Instant::now();
+					state.grid.update();
+					let time_after = instant::Instant::now();
+					let update_time = time_after - now;
+					println!("grid update time: {:?}", update_time);
+				}
 				state.window().request_redraw();
 			}
 			_ => {}
@@ -164,7 +172,7 @@ struct State<'window> {
 	num_indices: u32,
 
 	instance_buffer: wgpu::Buffer,
-	instances: Vec<Instance>,
+	num_instances: u32,
 
 	diffuse_bind_group: wgpu::BindGroup,
 	diffuse_texture: texture::Texture,
@@ -290,7 +298,7 @@ impl State<'_> {
 			source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
 		});
 
-		let camera = camera::Camera::new((config.width as f32 / -2., config.height as f32 / -2., 6.), config.width, config.height, 1., 10.);
+		let camera = camera::Camera::new((0., 0., 100.), config.width, config.height, 1., 10.);
 		let camera_controller = camera::CameraController::new(config.width as f32 / 4.0);
 
 		let mut camera_uniform = CameraUniform::new();
@@ -410,22 +418,22 @@ impl State<'_> {
 		);
 		let num_indices = indices.len() as u32;
 
-		const NUM_INSTANCES_PER_ROW: u32 = 10;
-		const INSTANCE_DISPLACEMENT: Vector3<f32> = Vector3::new(NUM_INSTANCES_PER_ROW as f32 * 0.5, NUM_INSTANCES_PER_ROW as f32 * 0.5, 0.0);
+		// const NUM_INSTANCES_PER_ROW: u32 = 10;
+		// const INSTANCE_DISPLACEMENT: Vector3<f32> = Vector3::new(NUM_INSTANCES_PER_ROW as f32 * 0.5, NUM_INSTANCES_PER_ROW as f32 * 0.5, 0.0);
+		//
+		// let instances = (0..NUM_INSTANCES_PER_ROW).flat_map(|y| {
+		// 	(0..NUM_INSTANCES_PER_ROW).map(move |x| {
+		// 		let position = (Vector3 { x: x as f32, y: y as f32, z: 0.0 } - INSTANCE_DISPLACEMENT) * (config.width / 2) as f32;
+		//
+		// 		Instance { position, color: [x as f32 / 10., 0., y as f32 / 10., 1.] }
+		// 	})
+		// }).collect::<Vec<_>>();
 
-		let instances = (0..NUM_INSTANCES_PER_ROW).flat_map(|y| {
-			(0..NUM_INSTANCES_PER_ROW).map(move |x| {
-				let position = (Vector3 { x: x as f32, y: y as f32, z: 0.0 } - INSTANCE_DISPLACEMENT) * (config.width / 2) as f32;
-
-				Instance { position, color: [x as f32 / 10., 0., y as f32 / 10., 1.] }
-			})
-		}).collect::<Vec<_>>();
-
-		let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
+		// let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
 		let instance_buffer = device.create_buffer_init(
 			&wgpu::util::BufferInitDescriptor {
 				label: Some("Instance Buffer"),
-				contents: bytemuck::cast_slice(&instance_data),
+				contents: bytemuck::cast_slice(&[8]),
 				usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
 			}
 		);
@@ -446,7 +454,7 @@ impl State<'_> {
 			num_indices,
 
 			instance_buffer,
-			instances,
+			num_instances: 0,
 
 			diffuse_bind_group,
 			diffuse_texture,
@@ -504,40 +512,28 @@ impl State<'_> {
 		self.camera_uniform.update_view_proj(&self.camera);
 		self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
 
-		self.grid.update();
+		let mut cells: Vec<Instance> = Vec::new();
+		for (hex, tribe) in self.grid.cells().iter() {
+			let pos = hex.to_pixel(self.grid.layout);
 
-		// TODO: uncomment
+			cells.push(
+				Instance {
+					position: Vector3 { x: pos.x, y: pos.y, z: 0. },
+					color: *tribe.get_color(),
+				}
+			)
+		}
 
-		// let mut cells: Vec<Instance> = Vec::new();
-		//
-		// for (hex, tribe) in self.grid.cells().iter() {
-		// 	let pos = hex.to_pixel(self.grid.layout);
-		//
-		// 	cells.push(
-		// 		Instance {
-		// 			position: Vector3 { x: pos.x, y: pos.y, z: 1. },
-		// 			color: *tribe.get_color(),
-		// 		}
-		// 	)
-		// }
-
-		// let instance_data = cells.iter().map(Instance::to_raw).collect::<Vec<_>>();
-		// let new_instance_buffer = self.device.create_buffer_init(
-		// 	&wgpu::util::BufferInitDescriptor {
-		// 		label: Some("Instance Buffer"),
-		// 		contents: bytemuck::cast_slice(&instance_data),
-		// 		usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_SRC,
-		// 	}
-		// );
-		// let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-		// 	label: Some("Buffer Copy Encoder"),
-		// });
-		//
-		// encoder.copy_buffer_to_buffer(
-		// 	&new_instance_buffer, 0,
-		// 	&self.instance_buffer, 0,
-		// 	(cells.iter().count() * std::mem::size_of::<Vertex>()) as wgpu::BufferAddress,
-		// );
+		let instance_data = cells.iter().map(Instance::to_raw).collect::<Vec<_>>();
+		let new_instance_buffer = self.device.create_buffer_init(
+			&wgpu::util::BufferInitDescriptor {
+				label: Some("Instance Buffer"),
+				contents: bytemuck::cast_slice(&instance_data),
+				usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_SRC,
+			}
+		);
+		self.instance_buffer = new_instance_buffer;
+		self.num_instances = cells.iter().count() as u32;
 	}
 
 	fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -578,7 +574,7 @@ impl State<'_> {
 			render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
 
 			render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-			render_pass.draw_indexed(0..self.num_indices, 0, 0..self.instances.len() as _);
+			render_pass.draw_indexed(0..self.num_indices, 0, 0..self.num_instances as _);
 			// render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
 		}
 
