@@ -68,15 +68,15 @@ pub struct TribalHexGrid {
 }
 
 impl TribalHexGrid {
-	pub fn new_empty(dt_size: Point2<f32>, cell_size: Point2<f32>) -> Self {
+	pub fn new_empty(grid_size: Point2<f32>, cell_size: Point2<f32>) -> Self {
 		let layout = Layout {
 			orientation: Orientation::pointy(),
 			size: cell_size,
-			origin: Point2 { x: cell_size.x, y: cell_size.y },
+			origin: Point2 { x: 0., y: 0. },
 		};
 
-		let width = dt_size.x / (cell_size.x * layout.orientation.f[0] as f32);
-		let height = dt_size.y / (cell_size.y * layout.orientation.f[3] as f32);
+		let width = grid_size.x;
+		let height = grid_size.y;
 
 		assert!(width != 0. && height != 0.);
 		// assert!((width * cell_size.x * 2.) + 1. <= dt_size.x, "Grid width too large");
@@ -97,8 +97,8 @@ impl TribalHexGrid {
 			layout,
 		}
 	}
-	pub fn new_random(dt_size: Point2<f32>, cell_size: Point2<f32>) -> Self {
-		let mut result = Self::new_empty(dt_size, cell_size);
+	pub fn new_random(grid_size: Point2<f32>, cell_size: Point2<f32>) -> Self {
+		let mut result = Self::new_empty(grid_size, cell_size);
 		// randomize tribes
 		result.randomize();
 		result

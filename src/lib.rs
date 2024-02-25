@@ -49,8 +49,8 @@ pub async fn run(width: f64, height: f64) {
 	let mut paused = false;
 
 	let grid = tribal::TribalHexGrid::new_random(
-		Point2 { x: width as f32, y: height as f32 },
-		Point2 { x: 40., y: 40. },
+		Point2 { x: 10., y: 10. },
+		Point2 { x: 50., y: 50. },
 	);
 
 	let mut state = State::new(&window, grid).await;
@@ -381,26 +381,16 @@ impl State<'_> {
 			multiview: None,
 		});
 
-		// let (vertices, indices) = (
-		// 	Hex::new(0, 0).polygon_corners(grid.layout).map(move |point: Point2<f32>| {
-		// 		Vertex { position: [point.x, point.y, 0.] }
-		// 	}),
-		// 	[
-		// 		0, 2, 1,
-		// 		0, 3, 2,
-		// 		0, 4, 3,
-		// 		0, 5, 4,
-		// 	]
-		// );
-		let vertices: &[Vertex] = &[
-			Vertex { position: [-0.3 * (config.width as f32), -0.3 * (config.height as f32), 0.] }, // bottom-left
-			Vertex { position: [0.3 * (config.width as f32), -0.3 * (config.height as f32), 0.] },
-			Vertex { position: [0.3 * (config.width as f32), 0.3 * (config.height as f32), 0.] },
-			Vertex { position: [-0.3 * (config.width as f32), 0.3 * (config.height as f32), 0.] },
-		];
+		let vertices =
+				&Hex::new(0, 0).polygon_corners(grid.layout).map(move |point: Point2<f32>| {
+					Vertex { position: [point.x, point.y, 0.] }
+				});
+
 		let indices: &[u16] = &[
 			0, 1, 2,
 			0, 2, 3,
+			0, 3, 4,
+			0, 4, 5,
 		];
 
 		let vertex_buffer = device.create_buffer_init(
