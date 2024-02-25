@@ -4,7 +4,7 @@ use winit::dpi::PhysicalPosition;
 use instant::Duration;
 
 #[rustfmt::skip]
-pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
+pub const OPENGL_TO_WGPU_MATRIX: Matrix4<f32> = Matrix4::new(
 	1.0, 0.0, 0.0, 0.0,
 	0.0, 1.0, 0.0, 0.0,
 	0.0, 0.0, 0.5, 0.5,
@@ -45,7 +45,7 @@ impl Camera {
 	}
 
 	pub fn calc_matrix(&self) -> Matrix4<f32> {
-		let proj = cgmath::ortho(
+		let proj = ortho(
 			0.0,
 			self.width as f32,
 			0.0,
@@ -68,11 +68,10 @@ pub struct CameraController {
 	amount_down: f32,
 	scroll: f32,
 	speed: f32,
-	sensitivity: f32,
 }
 
 impl CameraController {
-	pub fn new(speed: f32, sensitivity: f32) -> Self {
+	pub fn new(speed: f32) -> Self {
 		Self {
 			amount_left: 0.0,
 			amount_right: 0.0,
@@ -80,7 +79,6 @@ impl CameraController {
 			amount_down: 0.0,
 			scroll: 0.0,
 			speed,
-			sensitivity,
 		}
 	}
 
@@ -143,6 +141,8 @@ impl CameraController {
 		// 		camera.width = new_width as u32;
 		// 	}
 		// }
+
+		println!("camera position: {:?}", camera.position);
 
 		self.scroll = 0.;
 		self.amount_up = 0.;

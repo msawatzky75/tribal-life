@@ -3,40 +3,32 @@ mod texture;
 mod camera;
 mod vertex;
 
-use crate::vertex::Vertex;
-use cgmath::{Point3, Vector3, Vector4};
+use crate::vertex::{Vertex, Instance};
+use cgmath::{Point2, Vector3};
 use wgpu::util::DeviceExt;
 use winit::window::{Window, WindowBuilder};
 use winit::event::{DeviceEvent, ElementState, Event, KeyEvent, WindowEvent};
 use winit::event_loop::EventLoop;
 use winit::keyboard::{Key, NamedKey};
-use crate::tribal::{hex, TribalHexGrid};
+use crate::tribal::{Hex};
 
-const WIDTH: f32 = 1900.;
-const HEIGHT: f32 = 1000.;
-const VERTICES: &[Vertex] = &[
-	// Vertex2D { position: [-0.0868241, 0.49240386, 0.], color: [0.5, 1.0, 0.5], tex_coords: [0.4131759, 0.00759614] }, // A
-	// Vertex2D { position: [-0.49513406, 0.06958647, 0.], color: [0.5, 1.0, 0.5], tex_coords: [0.0048659444, 0.43041354] }, // B
-	// Vertex2D { position: [-0.21918549, -0.44939706, 0.], color: [0.5, 0.0, 1.], tex_coords: [0.28081453, 0.949397] }, // C
-	// Vertex2D { position: [0.35966998, -0.3473291, 0.], color: [0.5, 0.0, 0.5], tex_coords: [0.85967, 0.84732914] }, // D
-	// Vertex2D { position: [0.44147372, 0.2347359, 0.], color: [1., 0.0, 0.], tex_coords: [0.9414737, 0.2652641] }, // E
-
-	// counter-clockwise
-	Vertex { position: [-0.3 * (WIDTH), -0.3 * (HEIGHT), 0.], color: [1., 0., 0.] }, // bottom-left
-	Vertex { position: [0.3 * (WIDTH), -0.3 * (HEIGHT), 0.], color: [0., 1., 0.] },
-	Vertex { position: [0.3 * (WIDTH), 0.3 * (HEIGHT), 0.], color: [0., 0., 1.] },
-	Vertex { position: [-0.3 * (WIDTH), 0.3 * (HEIGHT), 0.], color: [1., 1., 0.] },
-];
-
-const INDICES: &[u16] = &[
-	// 0, 1, 4,
-	// 1, 2, 4,
-	// 2, 3, 4,
-	0, 1, 2,
-	0, 2, 3,
-	// 0, 2, 1,
-	// 0, 3, 2,
-];
+// const VERTICES: &[Vertex] = &[
+// 	// counter-clockwise
+// 	Vertex { position: [-0.3 * (WIDTH), -0.3 * (HEIGHT), 0.] }, // bottom-left
+// 	Vertex { position: [0.3 * (WIDTH), -0.3 * (HEIGHT), 0.] },
+// 	Vertex { position: [0.3 * (WIDTH), 0.3 * (HEIGHT), 0.] },
+// 	Vertex { position: [-0.3 * (WIDTH), 0.3 * (HEIGHT), 0.] },
+// ];
+//
+// const INDICES: &[u16] = &[
+// 	// 0, 1, 4,
+// 	// 1, 2, 4,
+// 	// 2, 3, 4,
+// 	0, 1, 2,
+// 	0, 2, 3,
+// 	// 0, 2, 1,
+// 	// 0, 3, 2,
+// ];
 
 
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen(start))]
@@ -56,9 +48,9 @@ pub async fn run(width: f64, height: f64) {
 
 	let mut paused = false;
 
-	let grid = TribalHexGrid::new_random(
-		hex::Point { x: width, y: height },
-		hex::Point { x: 40., y: 40. },
+	let grid = tribal::TribalHexGrid::new_random(
+		Point2 { x: width as f32, y: height as f32 },
+		Point2 { x: 40., y: 40. },
 	);
 
 	let mut state = State::new(&window, grid).await;
@@ -167,7 +159,6 @@ struct State<'window> {
 	render_pipeline: wgpu::RenderPipeline,
 
 	vertex_buffer: wgpu::Buffer,
-	num_vertices: u32,
 
 	index_buffer: wgpu::Buffer,
 	num_indices: u32,
@@ -187,14 +178,13 @@ struct State<'window> {
 
 	window: &'window Window,
 
-	grid: TribalHexGrid,
+	grid: tribal::TribalHexGrid,
 }
 
 impl State<'_> {
 	// Creating some of the wgpu types requires async code
-	async fn new<'window>(window: &'window Window, grid: TribalHexGrid) -> State<'window> {
+	async fn new<'window>(window: &'window Window, grid: tribal::TribalHexGrid) -> State<'window> {
 		let size = window.inner_size();
-
 		assert!(size.width > 0 && size.height > 0, "Height or width is 0");
 
 		// The instance is a handle to our GPU
@@ -301,7 +291,7 @@ impl State<'_> {
 		});
 
 		let camera = camera::Camera::new((config.width as f32 / -2., config.height as f32 / -2., 6.), config.width, config.height, 1., 10.);
-		let camera_controller = camera::CameraController::new(config.width as f32 / 4.0, 0.4);
+		let camera_controller = camera::CameraController::new(config.width as f32 / 4.0);
 
 		let mut camera_uniform = CameraUniform::new();
 		camera_uniform.update_view_proj(&camera);
@@ -391,43 +381,62 @@ impl State<'_> {
 			multiview: None,
 		});
 
+		// let (vertices, indices) = (
+		// 	Hex::new(0, 0).polygon_corners(grid.layout).map(move |point: Point2<f32>| {
+		// 		Vertex { position: [point.x, point.y, 0.] }
+		// 	}),
+		// 	[
+		// 		0, 2, 1,
+		// 		0, 3, 2,
+		// 		0, 4, 3,
+		// 		0, 5, 4,
+		// 	]
+		// );
+		let vertices: &[Vertex] = &[
+			Vertex { position: [-0.3 * (config.width as f32), -0.3 * (config.height as f32), 0.] }, // bottom-left
+			Vertex { position: [0.3 * (config.width as f32), -0.3 * (config.height as f32), 0.] },
+			Vertex { position: [0.3 * (config.width as f32), 0.3 * (config.height as f32), 0.] },
+			Vertex { position: [-0.3 * (config.width as f32), 0.3 * (config.height as f32), 0.] },
+		];
+		let indices: &[u16] = &[
+			0, 1, 2,
+			0, 2, 3,
+		];
+
 		let vertex_buffer = device.create_buffer_init(
 			&wgpu::util::BufferInitDescriptor {
 				label: Some("Vertex Buffer"),
-				contents: bytemuck::cast_slice(VERTICES),
+				contents: bytemuck::cast_slice(vertices),
 				usage: wgpu::BufferUsages::VERTEX,
 			}
 		);
-		let num_vertices = VERTICES.len() as u32;
 
 		let index_buffer = device.create_buffer_init(
 			&wgpu::util::BufferInitDescriptor {
 				label: Some("Index Buffer"),
-				contents: bytemuck::cast_slice(INDICES),
+				contents: bytemuck::cast_slice(indices),
 				usage: wgpu::BufferUsages::INDEX,
 			}
 		);
-		let num_indices = INDICES.len() as u32;
+		let num_indices = indices.len() as u32;
 
 		const NUM_INSTANCES_PER_ROW: u32 = 10;
 		const INSTANCE_DISPLACEMENT: Vector3<f32> = Vector3::new(NUM_INSTANCES_PER_ROW as f32 * 0.5, NUM_INSTANCES_PER_ROW as f32 * 0.5, 0.0);
 
 		let instances = (0..NUM_INSTANCES_PER_ROW).flat_map(|y| {
 			(0..NUM_INSTANCES_PER_ROW).map(move |x| {
-				let position = (Vector3 { x: x as f32, y: y as f32, z: 0.0 } - INSTANCE_DISPLACEMENT) * 10.;
+				let position = (Vector3 { x: x as f32, y: y as f32, z: 0.0 } - INSTANCE_DISPLACEMENT) * (config.width / 2) as f32;
 
-				Instance {
-					position,
-				}
+				Instance { position, color: [x as f32 / 10., 0., y as f32 / 10., 1.] }
 			})
 		}).collect::<Vec<_>>();
 
 		let instance_data = instances.iter().map(Instance::to_raw).collect::<Vec<_>>();
 		let instance_buffer = device.create_buffer_init(
 			&wgpu::util::BufferInitDescriptor {
-				label: Some("Index Buffer"),
+				label: Some("Instance Buffer"),
 				contents: bytemuck::cast_slice(&instance_data),
-				usage: wgpu::BufferUsages::VERTEX,
+				usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
 			}
 		);
 
@@ -442,7 +451,6 @@ impl State<'_> {
 			render_pipeline,
 
 			vertex_buffer,
-			num_vertices,
 
 			index_buffer,
 			num_indices,
@@ -507,8 +515,39 @@ impl State<'_> {
 		self.queue.write_buffer(&self.camera_buffer, 0, bytemuck::cast_slice(&[self.camera_uniform]));
 
 		self.grid.update();
-		// triangulate
-		// self.grid.
+
+		// TODO: uncomment
+
+		// let mut cells: Vec<Instance> = Vec::new();
+		//
+		// for (hex, tribe) in self.grid.cells().iter() {
+		// 	let pos = hex.to_pixel(self.grid.layout);
+		//
+		// 	cells.push(
+		// 		Instance {
+		// 			position: Vector3 { x: pos.x, y: pos.y, z: 1. },
+		// 			color: *tribe.get_color(),
+		// 		}
+		// 	)
+		// }
+
+		// let instance_data = cells.iter().map(Instance::to_raw).collect::<Vec<_>>();
+		// let new_instance_buffer = self.device.create_buffer_init(
+		// 	&wgpu::util::BufferInitDescriptor {
+		// 		label: Some("Instance Buffer"),
+		// 		contents: bytemuck::cast_slice(&instance_data),
+		// 		usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_SRC,
+		// 	}
+		// );
+		// let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+		// 	label: Some("Buffer Copy Encoder"),
+		// });
+		//
+		// encoder.copy_buffer_to_buffer(
+		// 	&new_instance_buffer, 0,
+		// 	&self.instance_buffer, 0,
+		// 	(cells.iter().count() * std::mem::size_of::<Vertex>()) as wgpu::BufferAddress,
+		// );
 	}
 
 	fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -558,60 +597,6 @@ impl State<'_> {
 		self.window.pre_present_notify(); // maybe?
 		output.present();
 
-		let camera = self.camera.calc_matrix();
-		let projected_origin = Point3::from_homogeneous(camera * Vector4 { x: 0., y: 0., z: 0., w: 1.0 });
-		let projected_positive = Point3::from_homogeneous(camera * Vector4 { x: WIDTH, y: HEIGHT, z: 0., w: 1.0 });
-
-		println!("camera position: {:?}", self.camera.position);
-		println!("origin: {:?} corner: {:?}", projected_origin, projected_positive);
-
 		Ok(())
 	}
-}
-
-struct Instance {
-	position: Vector3<f32>,
-}
-
-impl Instance {
-	pub fn desc() -> wgpu::VertexBufferLayout<'static> {
-		use std::mem;
-		wgpu::VertexBufferLayout {
-			array_stride: mem::size_of::<InstanceRaw>() as wgpu::BufferAddress,
-			step_mode: wgpu::VertexStepMode::Instance,
-			attributes: &[
-				wgpu::VertexAttribute {
-					offset: 0,
-					shader_location: 5,
-					format: wgpu::VertexFormat::Float32x4,
-				},
-				wgpu::VertexAttribute {
-					offset: mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
-					shader_location: 6,
-					format: wgpu::VertexFormat::Float32x4,
-				},
-				wgpu::VertexAttribute {
-					offset: mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
-					shader_location: 7,
-					format: wgpu::VertexFormat::Float32x4,
-				},
-				wgpu::VertexAttribute {
-					offset: mem::size_of::<[f32; 12]>() as wgpu::BufferAddress,
-					shader_location: 8,
-					format: wgpu::VertexFormat::Float32x4,
-				},
-			],
-		}
-	}
-	fn to_raw(&self) -> InstanceRaw {
-		InstanceRaw {
-			model: cgmath::Matrix4::from_translation(self.position).into(),
-		}
-	}
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct InstanceRaw {
-	model: [[f32; 4]; 4],
 }
